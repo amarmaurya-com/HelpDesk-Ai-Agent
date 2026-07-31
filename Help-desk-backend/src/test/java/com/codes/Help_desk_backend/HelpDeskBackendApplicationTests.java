@@ -1,74 +1,45 @@
 package com.codes.Help_desk_backend;
 
-import com.codes.Help_desk_backend.entity.Priority;
-import com.codes.Help_desk_backend.entity.Status;
-import com.codes.Help_desk_backend.entity.Ticket;
-import com.codes.Help_desk_backend.repository.TicketRepo;
-import com.codes.Help_desk_backend.service.TicketServiceImpl;
+
+import com.codes.Help_desk_backend.service.vector.DocumentIngestionService;
 import org.junit.jupiter.api.Test;
+import org.springframework.ai.document.Document;
+import org.springframework.ai.vectorstore.SearchRequest;
+import org.springframework.ai.vectorstore.VectorStore;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
 
-import java.lang.reflect.Proxy;
 import java.util.List;
-import java.util.Optional;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
+@SpringBootTest
 class HelpDeskBackendApplicationTests {
 
+    @Autowired
+    private DocumentIngestionService documentIngestionService;
+    @Autowired
+    private VectorStore vectorStore;
+
     @Test
-    void createTicketDefaultsStatusToOpen() {
-        TicketRepo ticketRepo = ticketRepoWithExistingTicket(null);
-        TicketServiceImpl ticketService = new TicketServiceImpl(ticketRepo);
-        Ticket ticket = Ticket.builder()
-                .id(99L)
-                .email("user@example.com")
-                .summary("Printer issue")
-                .priority(Priority.MEDIUM)
-                .build();
-
-        Ticket savedTicket = ticketService.createTicket(ticket);
-
-        assertThat(savedTicket.getId()).isNull();
-        assertThat(savedTicket.getStatus()).isEqualTo(Status.OPEN);
+    void main() {
+        System.out.println("Inside the main method");
+        documentIngestionService.loadDocuments();
+        System.out.println("Data saved in PDVDB");
     }
 
     @Test
-    void updateTicketAppliesOnlyProvidedFields() {
-        Ticket existingTicket = Ticket.builder()
-                .id(1L)
-                .email("user@example.com")
-                .summary("Old summary")
-                .description("Old description")
-                .category("Hardware")
-                .priority(Priority.LOW)
-                .status(Status.OPEN)
-                .build();
-        Ticket update = Ticket.builder()
-                .description("Updated description")
-                .priority(Priority.HIGH)
-                .build();
+    public void testSearch() {
 
-        TicketRepo ticketRepo = ticketRepoWithExistingTicket(existingTicket);
-        TicketServiceImpl ticketService = new TicketServiceImpl(ticketRepo);
+        List<Document> docs = vectorStore.similaritySearch(
+                SearchRequest.builder()
+                        .query("Relocation \n" +
+                                "Transfer Leave")
+                        .topK(5)
+                        .build()
+        );
 
-        Ticket savedTicket = ticketService.updateTicket(123L, update);
-
-        assertThat(savedTicket.getSummary()).isEqualTo("Old summary");
-        assertThat(savedTicket.getDescription()).isEqualTo("Updated description");
-        assertThat(savedTicket.getCategory()).isEqualTo("Hardware");
-        assertThat(savedTicket.getPriority()).isEqualTo(Priority.HIGH);
-        assertThat(savedTicket.getStatus()).isEqualTo(Status.OPEN);
-    }
-
-    private TicketRepo ticketRepoWithExistingTicket(Ticket existingTicket) {
-        return (TicketRepo) Proxy.newProxyInstance(
-                TicketRepo.class.getClassLoader(),
-                new Class<?>[]{TicketRepo.class},
-                (proxy, method, args) -> switch (method.getName()) {
-                    case "findById" -> Optional.ofNullable(existingTicket);
-                    case "findAllByEmail" -> existingTicket == null ? List.of() : List.of(existingTicket);
-                    case "save" -> args[0];
-                    default -> throw new UnsupportedOperationException(method.getName());
-                });
+        docs.forEach(d -> {
+            System.out.println("----------------");
+            System.out.println(d.getText());
+        });
     }
 }
